@@ -11,24 +11,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-enum optionType{MAX_DEPTH, VERSIONNING, TYPESELECT};
+typedef enum optionType{MAX_DEPTH=1, VERSIONNING, TYPESELECT} OptionType;
 
-union optionVal{
+typedef struct type{
+    int nbTypes; 
+    char **types;
+}Type; 
+
+typedef union optionVal{
     int depth;          //>=0; value if the chosen option is MAX_DEPTH 
     int shift;          //value if the chosen option is VERSIONNING 
                         //off=0, on=1
-    char **types;       //array of string, each string is a type 
+    Type type;       //array of string, each string is a type 
                         //if the chosen option is TYPESELECT
-};
+}OptionVal;
 
 typedef struct option{
-    enum optionType type;
-    union optionVal val;
+    OptionType type;
+    OptionVal val;
 }Option;
 
 typedef struct action{
     char *name;
     char *url; 
+    int nbOptions;
     Option *options;    //array of Option, these options are exclusive to one action
 }Action;
 
@@ -43,10 +49,17 @@ typedef struct task{
     TimeLaunch time;
     int nbActions; 
     Action **actions;   //array of Action pointers, each action can be performed by different tasks 
-                        //Therefore we only use pointers to Action as these actions are shared
+                        //Therefore we only use pointers to Action as these actions are shareable
 }Task;
 
+/** Save both actions and tasks in the configure object 
+ * to keep track of all objects create as there may be 
+ * actions that are not executed by any tasks then they 
+ * will not be freed at the end of the program. 
+ */
 typedef struct configure{
+    int nbActions;      //number of actions in the configuration file
+    Action **actions;   //array of all tasks in the configure
     int nbTask;         //number of tasks in the configuration file
     Task **tasks;       //array of all tasks in this configure
 }Configure;
@@ -58,7 +71,7 @@ typedef struct configure{
  * @param optVal: value of the option
  * @return : nothing, the option is modified directly by the pointer passed in parameters
  */
-void initOption(Option *opt, enum optionType optType, union optionVal optVal);
+void initOption(Option *opt, OptionType optType, OptionVal optVal);
 
 
 /**
@@ -70,7 +83,7 @@ void initOption(Option *opt, enum optionType optType, union optionVal optVal);
  * @param sizeOpt : the size of optTypes and optVals
  * @return : a pointer on the initialized action
  */
-Action *initAction(char *nameAct, char *urlAct, enum optionType *optTypes, union optionVal optVals, int sizeOpt);
+Action *initAction(char *nameAct, char *urlAct, OptionType *optTypes, OptionVal *optVals, int sizeOpt);
 
 /**
  * Initialize an Task
@@ -91,10 +104,13 @@ Task *initTask(char *nameTask, int sec, int min, int hour, Action **allActions, 
  */
 Configure *readConfigure(char *filePath);
 
-void delAction(Action **action);
-
-void delTask(Task **task);
-
 void delConfigure(Configure **config);
 
+void printConfig(Configure *config);
+
+/**
+ * This function allows users to set up their own configuration file.
+ * @return : the name of the configuration file (.sconf) that are written on hard disk
+ */
+char *writeConfig();
 #endif

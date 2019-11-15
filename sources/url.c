@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "url.h"
+#include "configuration.h"
 
 
 /*****************CONTRUCTION************************/
@@ -90,6 +91,7 @@ Node makeTree(char *url){
     const char delim[2] = "/";
 
     //del the HTTP part from URL
+    url = strdup(url);
     __url = delHTTPS(url);
 
     //create the root node 
@@ -103,9 +105,7 @@ Node makeTree(char *url){
         curNode = curNode->firstChild;
     }
 
-    //set depth for the node represent initial URL
-    curNode->depth = 0;
-
+    free(url); free(subURL);
     return root;
 }
 
@@ -115,7 +115,7 @@ Node makeTree(char *url){
 
 /**
  * Compare two nodes by their url 
- * @param node1, node2 : 2 nodes to be compared
+ * @param node1; node2 : 2 nodes to be compared
  * @return : 0 if their url are equals 
  *          -1 if node1->url < node2->url
  *           1 if node1->url > node2->url
@@ -133,7 +133,7 @@ int compareNode(Node node1, Node node2){
  * @param restURL: address of the string to stock the 
  * last part of the URL
  * @return : nothing as 2 strings are saved in the pointers
- * passed in by parameters
+ * passed in by arguments
  */
 void divideURL(char *URL, char **firstSubURL, char **restURL){
     char *idxDiviseur;
@@ -145,7 +145,6 @@ void divideURL(char *URL, char **firstSubURL, char **restURL){
         *restURL = NULL;
     }else{
         *restURL = idxDiviseur + 1;
-
         //recopy the first part into firstSubURL
         *firstSubURL = (char*)malloc((idxDiviseur - URL) * sizeof(char));
         strncpy(*firstSubURL, URL, (idxDiviseur - URL));
@@ -419,23 +418,19 @@ void writeURL(Node upperNode, char *prefixURL, FILE *f){
  * Browse through the tree to find and save all 
  * the parsed URLs into a file 
  * @param root : root of the tree
- * @param filePath : the path (the folder) to
- * save the file
- * @param URL : the initial URL given by the action
- * we use this URL as the name of the file
+ * @param action : the action executed
  * @return : nothing (a file is created and saved)
  */
-void saveAllURLs(Node root, char *filePath, char *URL){
+void saveAllURLs(Node root, Action *action){
     FILE *f;
     int size;
     char *fullPath;
 
-    size = strlen(filePath) + strlen(URL) + 6;
+    size = strlen("data/") + strlen(action->name) + strlen("/hyperlinks.txt")+ 1;
     fullPath = (char*)malloc(size * sizeof(char));
-    strcpy(fullPath, filePath);
-    strcat(fullPath, "/");
-    strcat(fullPath, URL);
-    strcat(fullPath, ".txt");
+    strcpy(fullPath, "data/");
+    strcat(fullPath, action->name);
+    strcat(fullPath, "/hyperlinks.txt");
 
     f = fopen(fullPath, "w");
     if (f == NULL){

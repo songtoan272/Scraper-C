@@ -111,5 +111,5 @@ void printTree(Node root);
  * we use this URL as the name of the file
  * @return : nothing (a file is created and saved)
  */
-void saveAllURLs(Node root, char *filePath, char *URL);
+void saveAllURLs(Node root, Action *actionq);
 #endif
