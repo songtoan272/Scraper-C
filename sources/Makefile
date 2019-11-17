@@ -1,27 +1,24 @@
-CFLAGS=-ggdb -Wall 
+DIR=../bin
+CFLAGS=-ggdb -Wall -g 
+SOURCES=main.c configuration.c url.c parse.c
+OBJECTS=$(SOURCES:.c=.o)
 
 all: main
 
-bag.o: bag.h bag.c 
-	gcc -c $(CFLAGS) bag.c
+url.o: url.h url.c 
+	gcc -o $(DIR)/$@ -c $(CFLAGS) url.c
 
-case.o: case.h case.c
-	gcc -c $(CFLAGS) case.c
+configuration.o: configuration.h configuration.c
+	gcc -o $(DIR)/$@  -c $(CFLAGS) configuration.c
 
-tray.o: tray.h tray.c case.h player.h
-	gcc -c $(CFLAGS) tray.c
+parse.o: parse.h parse.c
+	gcc -o $(DIR)/$@  -c $(CFLAGS) parse.c
 
-player.o: player.h player.c bag.h
-	gcc -c $(CFLAGS) player.c
+main.o: main.c url.h configuration.h
+	gcc -o $(DIR)/$@  -c $(CFLAGS) main.c 
 
-actions.o: actions.h actions.c tray.h player.h
-	gcc -c $(CFLAGS) actions.c
-
-main.o: main.c actions.h bag.h case.h tray.h player.h actions.h
-	gcc -c $(CFLAGS) main.c
-
-main: main.o actions.o player.o tray.o bag.o case.o
-	gcc -o main $(CFLAGS) main.o actions.o player.o tray.o bag.o case.o
+main: $(OBJECTS)
+	gcc -o $(DIR)/$@ $(CFLAGS) $(DIR)/*.o -lcurl
 
 clean: 
-	rm -f *.o exo1_2_main test_affichage test_intersect comparer_intersect_main comparer_viaMinimize_main trier
+	rm -f $(DIR)/*.o main

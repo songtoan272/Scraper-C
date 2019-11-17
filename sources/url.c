@@ -58,24 +58,35 @@ Node initNode(char *suburl, int depth, Node next, Node child){
 
 
 /**
- * delete the "https://" or "http://" in the URL 
+ * delete the protocol part in the URL and the www.
  * @param URL : the URL to be modified
  * @return : the pointer to the modified URL
  */
-char *delHTTPS(char *url){
-    char *partURL;
-    char delim[3] = "//";
+char *delProtocol(char *url){
+    char *protocol, *hostDomain, *res;
+    char http[3] = "//";
+    char www[5] = "www.";
 
     //find the first occurence of "//" in url
     //which delimits the https part and the real
     //url part
-    partURL = strstr(url, delim);
-    
-    if (partURL == NULL){
+    protocol = strstr(url, http);
+    hostDomain = strstr(url, www);
+    if (protocol == NULL){
         //no "//" exists in URL 
-        return url;
+        if (hostDomain != NULL){
+            res = strdup(hostDomain+4);
+            return res;
+        }else return strdup(url);
     }else{
-        return partURL+2;
+        if (hostDomain != NULL) {
+            res = strdup(hostDomain+4);
+            return res; 
+        }
+        else{
+            res = strdup(protocol+2);
+            return res;
+        }
     }
 }
 
@@ -88,24 +99,24 @@ char *delHTTPS(char *url){
 Node makeTree(char *url){
     Node root, curNode;
     char *subURL, *__url;
-    const char delim[2] = "/";
+    const char http[2] = "/";
 
     //del the HTTP part from URL
-    url = strdup(url);
-    __url = delHTTPS(url);
+    url = strdup(url); //not modify the url in argument
+    __url = delProtocol(url);
 
     //create the root node 
     root = initNode(".", -1, NULL, NULL);
     curNode = root;
 
-    subURL = strtok(__url, delim);
+    subURL = strtok(__url, http);
     while (subURL != NULL){
         curNode->firstChild = initNode(subURL, -1, NULL, NULL);
-        subURL = strtok(NULL, delim);
+        subURL = strtok(NULL, http);
         curNode = curNode->firstChild;
     }
-
-    free(url); free(subURL);
+    curNode->depth = 0;
+    free(__url); free(subURL);
     return root;
 }
 
@@ -121,6 +132,7 @@ Node makeTree(char *url){
  *           1 if node1->url > node2->url
  */
 int compareNode(Node node1, Node node2){
+
     return strcmp(node1->url, node2->url);
 }
 
@@ -146,8 +158,9 @@ void divideURL(char *URL, char **firstSubURL, char **restURL){
     }else{
         *restURL = idxDiviseur + 1;
         //recopy the first part into firstSubURL
-        *firstSubURL = (char*)malloc((idxDiviseur - URL) * sizeof(char));
-        strncpy(*firstSubURL, URL, (idxDiviseur - URL));
+        // *firstSubURL = (char*)malloc((idxDiviseur - URL + 1) * sizeof(char));
+        // strncpy(*firstSubURL, URL, (idxDiviseur - URL));
+        *firstSubURL = strndup(URL, idxDiviseur - URL);
     }
 }
 
@@ -171,7 +184,7 @@ void insertNode(Node upperNode, char *subURLInsert, int depth){
     }
 
     //declare necessary variables
-    char *firstSubURL, *restURL, *idxDiviseur; 
+    char *firstSubURL, *restURL; 
     Node nodeToInsert, childNode, prevNode;
     int order, inserted;
 
@@ -183,48 +196,52 @@ void insertNode(Node upperNode, char *subURLInsert, int depth){
 
 
     //insert the node to a appropriate position 
-    //regarding the alphabet order between sibling nodes
+    //regarding to the alphabet order between sibling nodes
     childNode = upperNode->firstChild;
-    order = compareNode(nodeToInsert, childNode);
-    if (order == -1){
-        //nodeToInsert < childNode
-        nodeToInsert->nextSibling = childNode;
+    if (childNode == NULL) {
         upperNode->firstChild = nodeToInsert;
-    }else if (order == 0){
-        //nodeToInsert is the childNode -> alr exists
-        //-> we dont insert it and process to
-        //the rest part of URL
-        delNode(&nodeToInsert);
-        nodeToInsert = childNode;
     }else{
-        //nodeToInsert > childNode
-        //-> insert it in the proper position following alphabet order
-        prevNode = childNode;
-        childNode = childNode->nextSibling;
-        inserted = 0;
-        while (childNode != NULL){
-            order = compareNode(nodeToInsert, childNode);
-            if (order == -1){
-                nodeToInsert->nextSibling = childNode;
-                prevNode->nextSibling = nodeToInsert;
-                inserted = 1;
-                break;
-            }else if (order == 1){
-                prevNode = childNode;
-                childNode = childNode->nextSibling;
-            }else{
-                //this node alr exists in the tree -> pass
-                delNode(&nodeToInsert);
-                nodeToInsert = childNode;
-                inserted = 1;
-                break;
+        order = compareNode(nodeToInsert, childNode);
+        if (order  < 0){
+            //nodeToInsert < childNode
+            nodeToInsert->nextSibling = childNode;
+            upperNode->firstChild = nodeToInsert;
+        }else if (order == 0){
+            //nodeToInsert is the childNode -> alr exists
+            //-> we dont insert it and process to
+            //the rest part of URL
+            delNode(&nodeToInsert);
+            nodeToInsert = childNode;
+        }else{
+            //nodeToInsert > childNode
+            //-> insert it in the proper position following alphabet order
+            prevNode = childNode;
+            childNode = childNode->nextSibling;
+            inserted = 0;
+            while (childNode != NULL){
+                order = compareNode(nodeToInsert, childNode);
+                if (order < 0){
+                    nodeToInsert->nextSibling = childNode;
+                    prevNode->nextSibling = nodeToInsert;
+                    inserted = 1;
+                    break;
+                }else if (order > 0){
+                    prevNode = childNode;
+                    childNode = childNode->nextSibling;
+                }else{
+                    //this node alr exists in the tree -> pass
+                    delNode(&nodeToInsert);
+                    nodeToInsert = childNode;
+                    inserted = 1;
+                    break;
+                }
             }
+            //browsed through all children nodes of upperNode 
+            //-> insert to the end of the linked-list sibling nodes
+            if (!inserted){
+                prevNode->nextSibling = nodeToInsert;
+            }        
         }
-        //browsed through all children nodes of upperNode 
-        //-> insert to the end of the linked-list sibling nodes
-        if (!inserted){
-            prevNode->nextSibling = nodeToInsert;
-        }        
     }
 
 
@@ -250,7 +267,9 @@ void insertNode(Node upperNode, char *subURLInsert, int depth){
  * @return : nothing as the root always stay the same 
  */
 void insertURL(Node root, char *URL, int depth){
+    URL = delProtocol(URL);
     insertNode(root, URL, depth);
+    free(URL);
 }
 
 
@@ -314,7 +333,7 @@ Node findNode(Node upperNode, char *subURL){
         if (order == 0){
             free(firstPartURL);
             return findNode(childNode, restURL);
-        }else if(order == 1){
+        }else if(order > 0){
             childNode = childNode->nextSibling;
         }else{
             break;
@@ -336,7 +355,7 @@ int URLAlrParsed(Node root, char *URL){
     Node nodeOfURL = findNode(root, URL);
     if (nodeOfURL == NULL){
         //this URL has not been inserted into the tree
-        return 1;
+        return 0;
     }else{
         if (nodeOfURL->depth == -1){
             //this URL was inserted but has not been parsed

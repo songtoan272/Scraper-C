@@ -361,6 +361,11 @@ void readInActions(FILE *f, int nbActions, Action **allActions){
             
         }
     }
+    if (name != NULL){
+        allActions[noCurrAct] = initAction(name, url, currOptTypes, currOptVal, nbOpts);
+        free(name); name = NULL;
+        free(url); url = NULL;
+    }
 }
 
 /**
@@ -437,6 +442,11 @@ void readInTasks(FILE *f, Task **allTasks, int nbTasks, Action **allActions, int
                 }continue;        
             }
         }
+    }
+    if (name != NULL){
+        verifyTime(&h, &m, &s);
+        allTasks[noCurrTask] = initTask(name, s, m, h, allActions, nameActions, nbActions, nbOpts);
+        free(name); name = NULL;
     }
 }
 
@@ -579,8 +589,7 @@ void printConfig(Configure *config){
 
 /**Clear the newline character in stdin buffer**/
 void clearNewline(){
-    char c;
-    while ((c = getc(stdin)) == '\n');
+    getc(stdin);
 }
 
 /**

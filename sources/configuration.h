@@ -106,6 +106,8 @@ Configure *readConfigure(char *filePath);
 
 void delConfigure(Configure **config);
 
+void printAction(Action *action);
+
 void printConfig(Configure *config);
 
 /**

@@ -24,6 +24,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "configuration.h"
 
 struct __node{
     char *url;                  //the last part after a '/' of an url
@@ -46,6 +47,13 @@ typedef struct __node* Node;
  * @return : the node itself
  */
 Node initNode(char *suburl, int depth, Node next, Node child);
+
+/**
+ * delete the protocol part in the URL 
+ * @param URL : the URL to be modified
+ * @return : the pointer to the modified URL
+ */
+char *delProtocol(char *url);
 
 /**
  * Make a tree from the very initial url 
@@ -86,6 +94,18 @@ void delNode(Node *pNode);
 void delTree(Node *pRoot);
 
 /**
+ * Find the node corresponding to an URL
+ * (the node contains the last part of the URL in the tree)
+ * @param upperNode : the curren parent node from where
+ * we descend to find the last node of the URL
+ * @param subURL: a part of the initial URL that we use 
+ * to find the last node of the URL
+ * @return : the last node if it exists in the tree
+ *          NULL if not
+ */
+Node findNode(Node upperNode, char *subURL);
+
+/**
  * Verify if an URL has already been parsed
  * @param root : the root of the tree
  * @param URL : the URL to be verified
@@ -111,5 +131,5 @@ void printTree(Node root);
  * we use this URL as the name of the file
  * @return : nothing (a file is created and saved)
  */
-void saveAllURLs(Node root, Action *actionq);
+void saveAllURLs(Node root, Action *action);
 #endif

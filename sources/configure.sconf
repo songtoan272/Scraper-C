@@ -1,0 +1,33 @@
+=
+{name -> My 1st action}
+{url -> www.google.com}
++
+{max-depth -> 10}
+{versionning -> on}
+
+=
+{name -> My 2nd action}
+{url -> https://stackoverflow.com/questions/24162576/how-to-download-all-images-from-web-page-in-c}
++
+{max-depth -> 2}
+{versionning -> off}
+{type -> (text/html, image/jpg, image/jpeg)}
+
+==
+{name -> My 1st task}
+{minute -> 5}
++
+(My 1st action)
+
+==
+{name -> My 2nd task}
+{minute -> 2}
+{second -> 10}
++
+(My 1st action, My 2nd action)
+
+==
+{name -> My 3rd task}
+{second -> 5}
++
+(My 2nd action)

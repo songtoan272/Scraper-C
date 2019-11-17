@@ -9,11 +9,55 @@
 #ifndef __PARSE
 #define __PARSE
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "configuration.h"
 #include "url.h"
 
+/*Each Action will be associated with its tree of URLs 
+* by this wrapper. This wrapper allows us to get access
+* to the initial action (its name, url and options) 
+* and at the same time manipulate its tree associated.
+* A WrapAction will be initiated when the Action enters 
+* scrapping process and will be destroy when all scrapping
+* is done.
+*/
+typedef struct wrapAction{
+  Action *action;
+  Node root;
+}WrapAction;
+
+/*LinkEasyMulti is the association between a curl easy handle 
+* and a curl multi handle. A curl easy handle is to manage 
+* the scrapping of a URL while the multi handle is used to
+* manage all the scrapping process of a task.
+*/
+typedef struct linkEasyMulti{
+  CURL *easy;
+  CURLM *multi;
+}LinkEasyMulti;
+
+WrapAction *initWrap(Action *action, Node root);
+
+void delWrap(WrapAction **wrapper);
+
+LinkEasyMulti *initLink(CURL *easy, CURLM *multi);
+
+void delLink(LinkEasyMulti *link);
+
+int isTypeSelected(char *type, Action *action);
+
+char *extractLastPart(char *url);
+
+int hasExtension(char *fileName);
+
+size_t saveData(char *data, char *dataType, char *filePath, char *url);
+
+char *getURL(char *data, char **dataLeft);
+
+void reconstructURL(char **URLRelative, char *URLDomain);
+
+size_t write_cb(char *data, size_t n, size_t l, LinkEasyMulti *linkHandles);
+ 
+void add_transfer(CURLM *cm, WrapAction *wrapper, char *url);
 
 /**
  * Initialize a Node
@@ -40,6 +84,7 @@ void parseTask(Task *task);
  *           1 if node1->url > node2->url
  */
 void parseConfigure(Configure *config);
+
 
 
 #endif
