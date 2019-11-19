@@ -12,6 +12,13 @@
 #include "configuration.h"
 #include "url.h"
 
+#define NB_MIME_TYPES 691
+
+typedef struct typeMIME{
+  char *type;
+  char *extension;
+}TypeMIME;
+
 /*Each Action will be associated with its tree of URLs 
 * by this wrapper. This wrapper allows us to get access
 * to the initial action (its name, url and options) 
@@ -35,6 +42,14 @@ typedef struct linkEasyMulti{
   CURLM *multi;
 }LinkEasyMulti;
 
+
+
+TypeMIME initMIME(char *type, char* extension);
+
+void delAllMIME(TypeMIME *allMIME);
+
+
+
 WrapAction *initWrap(Action *action, Node root);
 
 void delWrap(WrapAction **wrapper);
@@ -49,13 +64,13 @@ char *extractLastPart(char *url);
 
 int hasExtension(char *fileName);
 
-size_t saveData(char *data, char *dataType, char *filePath, char *url);
+size_t saveData(void *data, size_t size, size_t nmemb, char *dataType, char *filePath, char *url);
 
 char *getURL(char *data, char **dataLeft);
 
 void reconstructURL(char **URLRelative, char *URLDomain);
 
-size_t write_cb(char *data, size_t n, size_t l, LinkEasyMulti *linkHandles);
+size_t write_cb(void *data, size_t size, size_t nmemb, LinkEasyMulti *linkHandles);
  
 void add_transfer(CURLM *cm, WrapAction *wrapper, char *url);
 

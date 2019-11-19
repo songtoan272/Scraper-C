@@ -17,7 +17,7 @@
  
 int main(void)
 {
-  Configure *config = readConfigure("configure.sconf");
+  Configure *config = readConfigure("../sources/configure.sconf");
   Task *task = config->tasks[2];
   struct callback_data;
   CURLM *cm;
@@ -43,7 +43,7 @@ int main(void)
       if(msg->msg == CURLMSG_DONE) {
         char *url;
         CURL *e = msg->easy_handle;
-        curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &url);
+        curl_easy_getinfo(msg->easy_handle, CURLINFO_EFFECTIVE_URL, &url);
         fprintf(stderr, "R: %d - %s <%s>\n",
                 msg->data.result, curl_easy_strerror(msg->data.result), url);
         curl_multi_remove_handle(cm, e);

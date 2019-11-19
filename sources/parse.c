@@ -160,7 +160,7 @@ char *getExtFromDataType(char *dataType){
     }
 }
 
-size_t saveData(char *data, char *dataType, char *filePath, char *url){
+size_t saveData(void *data, size_t size, size_t nmemb, char *dataType, char *filePath, char *url){
   FILE *f;
   //use last part after '/' of the url as name of saved file
   char *fileName = extractLastPart(url);
@@ -177,7 +177,7 @@ size_t saveData(char *data, char *dataType, char *filePath, char *url){
   strcat(fullPath, extension);
 
   f = fopen(fullPath, "a");
-  res = fprintf(f, "%s", data);
+  res = fwrite(data, size, nmemb, f);
   fclose(f);
   free(fullPath);
   free(fileName);
@@ -216,7 +216,7 @@ char *getURL(char *data, char **dataLeft){
   }
   
   url = strndup(startURL, endURL-startURL);
-  *dataLeft = endURL+1;
+  *dataLeft = endURL;
   return url;
 }
 
@@ -263,12 +263,12 @@ void reconstructURL(char **URLRelative, char *URLHost){
 * After that cleanup the ez handle in argument
 * 
 */ 
-size_t write_cb(char *data, size_t n, size_t l, LinkEasyMulti *linkHandles){
+size_t write_cb(void *data, size_t size, size_t nmemb, LinkEasyMulti *linkHandles){
 
   size_t res;
   char *contentType;
   char *urlFound, *currURL;
-  char *__data = data;
+  char *__data;
   int currDepth, max_depth;
   WrapAction *wrapper;
 
@@ -291,12 +291,13 @@ size_t write_cb(char *data, size_t n, size_t l, LinkEasyMulti *linkHandles){
   //if the content type is one of those selected to save 
   //defined in the option of action then save data 
   if (isTypeSelected(contentType, wrapper->action)){
-    res = saveData(data, contentType, ".", currURL);
+    res = saveData(data, size, nmemb, contentType, ".", currURL);
   }
 
   // find others URL from the content only if the content 
   // is of type text/html
-  if (strstr(contentType, "text/html") != NULL && currDepth < max_depth){    
+  if (strstr(contentType, "text/html") != NULL && currDepth < max_depth){
+    __data = (char*)data;    
     while ((urlFound = getURL(__data, &__data)) != NULL){
       reconstructURL(&urlFound, currURL);
       urlFound = delProtocol(urlFound);
