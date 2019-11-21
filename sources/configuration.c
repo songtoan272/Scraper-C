@@ -597,15 +597,17 @@ void clearNewline(){
  * @return : the name of the configuration file (.sconf) that are written on hard disk
  */
 char *writeConfig(){
-    char nameFile[100];
+    char nameFile[100], fullPath[200];
     int key, choice, valueInt; 
     char value[2000];
     FILE *config;
 
+    strcpy(fullPath, "../configure/");
     //Ask the name of the configuration
     printf("How do you want to name this configuration?\n");
     scanf("%[^\n]", nameFile);
     strcat(nameFile, ".sconf");
+    strcat(fullPath, nameFile);
     clearNewline();
 
     //Open the configuration file to write in
@@ -747,5 +749,5 @@ char *writeConfig(){
     }while (choice != 0);
 
     fclose(config);
-    return strdup(nameFile);
+    return strdup(fullPath);
 }

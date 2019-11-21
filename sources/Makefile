@@ -1,4 +1,4 @@
-DIR=./
+DIR=../bin
 CFLAGS=-ggdb -Wall -g 
 SOURCES=main.c configuration.c url.c parse.c
 OBJECTS=$(SOURCES:.c=.o)
@@ -21,4 +21,4 @@ main: $(OBJECTS)
 	gcc -o $(DIR)/$@ $(CFLAGS) $(DIR)/*.o -lcurl
 
 clean: 
-	rm -f $(DIR)/*.o $(DIR)/main $(DIR)*.html
+	rm -f $(DIR)/*.o $(DIR)/main

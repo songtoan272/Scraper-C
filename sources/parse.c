@@ -14,6 +14,8 @@
 #include "url.h"
 #include "parse.h"
 
+TypeMIME *allMIMEs;
+
 /** 
  * Initialize the WrapAction
  */
@@ -41,9 +43,149 @@ void delLink(LinkEasyMulti *link){
   free(link);
 }
 
+/**
+ * Create an array of all commun MIME types
+ * by browsing through a website.
+**/
+TypeMIME *initAllMIME(){
+  CURL *curl;
+  FILE *fp;
+  CURLcode res;
+  TypeMIME *typesMime;
+  char *ext = NULL, *typeMime = NULL, *startExt, *endExt, *startTypeMime, *endTypeMime;
+  char buffer[BUFFER_SIZE];
+  char *url = "https://developer.mozilla.org/fr/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Complete_list_of_MIME_types";
+  char *outfilename = "MIME_Types.txt";
+  int nb_types = 0;
+
+  // Download the content of the website who refer the list of mime types
+  curl = curl_easy_init();
+  if (curl) {
+    fp = fopen(outfilename,"wb");
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+    res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    fclose(fp);
+  }
+  // Open our file to parse and get type mime and its extension
+  fp = fopen(outfilename,"r");
+  if(fp == NULL) {
+    printf("Impossible d'accéder au fichier\n");
+    exit(1);
+  }
+
+  typesMime = (TypeMIME*)malloc(NB_MIME_TYPES * sizeof(TypeMIME));
+  // Get each line of html content
+  while((fgets(buffer,BUFFER_SIZE, fp) != NULL)) {
+    // Get line where we find an <td><code>. 
+    //-> the line where we can find the extension
+    if (strstr(buffer, "<td><code>.") != NULL) {
+      ext = strstr(buffer, "<td><code>.");
+      if (strstr(buffer, "<br>") == NULL){
+        //there is no breakline 
+        //-> only one extension for this MIME type
+        startExt = ext + strlen("<td><code>");
+        endExt = strstr(startExt, "</code></td>");
+      }else{
+        //There is a break line
+        //-> there are 2 extensions possible for this MIME type
+        //We take the second one in the following line
+        fgets(buffer, BUFFER_SIZE, fp);
+        startExt = strchr(buffer, '.');
+        endExt = strstr(startExt, "</code></td>");
+      }
+      ext = strndup(startExt, endExt - startExt);
+    }
+    // Same use as for extension but we check here if we dont have a "."
+    else if(strstr(buffer, "<td><code>") != NULL) {
+      typeMime = strstr(buffer, "<td><code>");
+      startTypeMime = typeMime + strlen("<td><code>");
+      endTypeMime = strstr(startTypeMime, "</code>");
+      typeMime = strndup(startTypeMime, endTypeMime - startTypeMime);
+    }else if (strstr(buffer, "</tr>") != NULL && ext != NULL && typeMime != NULL){
+      typesMime[nb_types].extension = ext;
+      typesMime[nb_types].type = typeMime;
+      // printf("%d. ext = %s\n",nb_types+1, typesMime[nb_types].extension);
+      // printf("%d. type = %s\n", nb_types+1, typesMime[nb_types].type);
+      nb_types++;
+    // When we get the end of tbody we stop the process
+    }else if(strstr(buffer, "</tbody>") != NULL) {
+      break;
+    }
+  }
+  fclose(fp);
+  return typesMime;
+}
+
+
+void delAllMIME(TypeMIME *allMIME){
+  for (int i = 0; i < NB_MIME_TYPES; i++){
+    free(allMIME[i].extension);
+    free(allMIME[i].type);
+  }free(allMIME);
+}
+
+/**
+ * From contentType, look for the corresponding extension
+ * in the table allMIMEs.
+ * (allMIMEs contains only the commun MIME types)
+**/
+char *getExtensionFromCt(char *contentType){
+  for (int i = 0; i < NB_MIME_TYPES; i++){
+    if (strstr(contentType, allMIMEs[i].type) != NULL){
+      return allMIMEs[i].extension;
+    }
+  }
+  return NULL;
+}
+
+/**
+ * This function fix the extension in the name of a file
+ * according to its type. 
+ * If the file name alr has a valid extension then 
+ * *fileName won't be changed.
+ * Else, we create a new name with valid extension 
+ * then assign this name to the string pointed by fileName
+ * @param fileName: pointer to the string of fileName
+ * @param contentType : the MIME type of the content 
+ * to be saved
+ * @return : this function does not return anything
+ * the filename fixed (or not) will be assigned back
+ * to the pointer passed in argument.
+ **/ 
+void fixExtension(char **fileName, char *contentType){
+  char *validExt = getExtensionFromCt(contentType);
+  char *pointExt;
+  char *newName;
+
+  if (validExt == NULL) {
+    fprintf(stderr, "File %s is not of a commun MIME type.", *fileName);
+    return;
+  }
+
+  pointExt = strstr(*fileName, validExt);
+  if (pointExt != NULL){
+    //the extension exists in fileName
+    newName = strndup(*fileName, pointExt + strlen(validExt) - *fileName);
+  }else{
+    //the current fileName does not contain valid extension
+    newName = (char*)malloc((strlen(*fileName) + strlen(validExt)) * sizeof(char));
+    strcpy(newName, *fileName);
+    strcat(newName, validExt);
+  }
+  free(*fileName);
+  *fileName = newName;
+}
+
+/**
+ * Get the value of max-depth option of the action
+ * If the action does not have a max-depth option then return 0
+**/
 int getMaxDepth(Action *action){
   int res = 0;
-  for (int i = 0; i < action->nbOptions; ++i){
+  for (int i = 0; i < action->nbOptions; i++){
     switch (action->options[i].type){
       case MAX_DEPTH:
         res = action->options[i].val.depth;
@@ -55,9 +197,14 @@ int getMaxDepth(Action *action){
   return res;
 }
 
+/**
+ * Return the value of versionning of the action
+ * If the action does not have versionning option, 
+ * versionning will be considered "off".
+**/ 
 int getVersionning(Action *action){
   int res = 0;
-  for (int i = 0; i < action->nbOptions; ++i){
+  for (int i = 0; i < action->nbOptions; i++){
     switch (action->options[i].type){
       case VERSIONNING:
         res = action->options[i].val.shift;
@@ -69,11 +216,15 @@ int getVersionning(Action *action){
   return res;
 }
 
+/**
+ * Check if type (content type of an url) is one 
+ * of the selected types of the action
+ **/
 int isTypeSelected(char *type, Action *action){
   char **typesSelected = NULL;
   int nbTypes = 0;
 
-  for (int i = 0; i < action->nbOptions; ++i){
+  for (int i = 0; i < action->nbOptions; i++){
     switch (action->options[i].type){
       case TYPESELECT:
         typesSelected = action->options[i].val.type.types;
@@ -89,7 +240,7 @@ int isTypeSelected(char *type, Action *action){
     //save all type of data
     return 1;
   }else{
-    for (int i = 0; i < nbTypes; ++i){
+    for (int i = 0; i < nbTypes; i++){
       if (strstr(type, typesSelected[i]) != NULL){
         return 1;
       }
@@ -98,128 +249,13 @@ int isTypeSelected(char *type, Action *action){
   }
 }
 
-char *extractLastPart(char *url){
-  char *mark, *prevMark, *res;
-  int host = 1; 
-  char prohitbited[] = "*:\\/<>|\"?[];=+&£$.!@#^() ";
 
-
-  mark = strchr(url, '/');
-  while (mark != NULL && *(mark+1) != '\0'){
-    prevMark = mark;
-    mark = strchr(mark+1, '/');
-    host = 0; 
-  }
-  if (host == 0){ // www.abc.com/sub1/sub2...
-    if (mark != NULL) {
-      res = strndup(prevMark+1, strlen(prevMark)-2);  
-    }
-    else res = strdup(prevMark+1);
-  }else{ // www.abc.com(/)
-    res = strndup(url, strlen(url)-1);
-  }
-
-  //replace prohibited character by file naming convention in host url by _
-  mark = res;
-  for (int i = 0; i < strlen(res); ++i){
-      if (strchr(prohitbited, res[i]) != NULL){
-        res[i] = '_';
-      }
-  }
-  return res;
-}
-
-int hasExtension(char *fileName){
-  char *dot = strrchr(fileName, '.');
-  if (!dot || dot == fileName) return 0;
-  return 1;
-}
-
-char *getExtFromDataType(char *dataType){
-    char *slash, *plus, *semicolon;
-    slash = strchr(dataType, '/');
-    plus = strchr(dataType, '+');
-    semicolon = strchr(dataType, ';');
-    if (slash == NULL){
-        fprintf(stderr, "Wrong MIME type.\n");
-        exit(1);
-    }else{
-        if (semicolon != NULL){
-            if (plus != NULL){
-                return strndup(slash+1, plus - slash - 1);
-            }else{
-                return strndup(slash+1, semicolon - slash - 1);
-            }
-        }else{
-            if (plus != NULL){
-                return strndup(slash+1, plus - slash - 1);
-            }else{
-                return strdup(slash+1);
-            }
-        }
-    }
-}
-
-size_t saveData(void *data, size_t size, size_t nmemb, char *dataType, char *filePath, char *url){
-  FILE *f;
-  //use last part after '/' of the url as name of saved file
-  char *fileName = extractLastPart(url);
-  char *extension;
-  char *fullPath;
-  size_t res;
-
-  extension = getExtFromDataType(dataType);
-  fullPath = (char*)malloc((strlen(filePath) + strlen(fileName) + strlen(extension) + 3) * sizeof(char));
-  strcpy(fullPath, filePath);
-  strcat(fullPath, "/");
-  strcat(fullPath, fileName);
-  strcat(fullPath, ".");
-  strcat(fullPath, extension);
-
-  f = fopen(fullPath, "a");
-  res = fwrite(data, size, nmemb, f);
-  fclose(f);
-  free(fullPath);
-  free(fileName);
-  free(extension);
-  return res;
-}
-
-char *getURL(char *data, char **dataLeft){
-  if (data == NULL || strlen(data) == 0) return NULL;
-
-  char *href, *src, *startURL, *endURL, *url;
-  href = strstr(data, "href=\"");
-  src = strstr(data, "src=\"");
-
-  if (href != NULL){
-    if (src != NULL){
-      if (href < src){
-        //find a href tag before a src tag
-        startURL = href + strlen("href=\"");
-        endURL = strstr(startURL, "\"");
-      }else{
-        startURL = src + strlen("src=\"");
-        endURL = strstr(startURL, "\"");
-      }
-    }else{
-      startURL = href + strlen("href=\"");
-      endURL = strstr(startURL, "\"");
-    }
-  }else{
-    if (src != NULL){
-      startURL = src + strlen("src=\"");
-      endURL = strstr(startURL, "\"");
-    }else{
-      return NULL;
-    }
-  }
-  
-  url = strndup(startURL, endURL-startURL);
-  *dataLeft = endURL;
-  return url;
-}
-
+/**
+ * In a html script, there may be relative link 
+ * which will direct back to a file in host link.
+ * We need to reconstruct the relative url 
+ * before initialize a curl_easy for it
+ **/
 void reconstructURL(char **URLRelative, char *URLHost){
   char *slash, *res;
 
@@ -252,6 +288,134 @@ void reconstructURL(char **URLRelative, char *URLHost){
   
   *URLRelative = res;
 }
+  
+//   url = strndup(startURL, endURL-startURL);
+//   *dataLeft = endURL;
+//   return url;
+// }
+
+/**
+ * Reading through file f, retrieve all URLs and 
+ * add these URLs to curl multi cm if the depth 
+ * of URLOfFile < max-depth of the action
+ **/
+void getURLsFromFile(FILE *f, CURLM *cm, WrapAction *wrapper, char* URLOfFile){
+  char buffer[BUFFER_SIZE], *copyBuffer;
+  char *href, *src, *startURL, *endURL, *url;
+  int currDepth, maxdepth;
+
+  currDepth = findNode(wrapper->root, URLOfFile)->depth;
+  maxdepth = getMaxDepth(wrapper->action);
+
+  if (currDepth >= maxdepth) return;
+
+  while (fgets(buffer, BUFFER_SIZE, f) != NULL){
+    copyBuffer = buffer;
+    href = strstr(copyBuffer, "href=\"");
+    src = strstr(copyBuffer, "src=\"");
+    while (href != NULL || src != NULL){
+      if (href != NULL){
+        if (src != NULL){
+          if (href < src){
+            //find a href tag before a src tag
+            startURL = href + strlen("href=\"");
+            endURL = strstr(startURL, "\"");
+          }else{
+            startURL = src + strlen("src=\"");
+            endURL = strstr(startURL, "\"");
+          }
+        }else{
+          startURL = href + strlen("href=\"");
+          endURL = strstr(startURL, "\"");
+        }
+      }else{
+        if (src != NULL){
+          startURL = src + strlen("src=\"");
+          endURL = strstr(startURL, "\"");
+        }else{
+          break;
+        }
+      }
+      if (startURL == NULL || endURL == NULL) break;
+      url = strndup(startURL, endURL-startURL);
+      reconstructURL(&url, URLOfFile);
+      url = delProtocol(url);
+
+      if (!URLAlrParsed(wrapper->root, url)){
+        add_transfer(cm, wrapper, url);
+        insertURL(wrapper->root, url, currDepth+1);
+      }
+
+      href = strstr(endURL+1, "href=\"");
+      src = strstr(endURL+1, "src=\"");
+    }
+    
+  }
+}
+
+/**
+ * Extract the last part after '/' of url
+ * This part will be used to name the file that
+ * are saved the content of @param url
+ **/
+char *extractLastPart(char *url){
+  char *slash = strrchr(url, '/'); //last occurence of / in url
+  int size;
+  if (slash == url + strlen(url) - 1){
+    // www.abc.com/ the last / is useless
+    //we have to retrieve the / before this one
+    for (int i = strlen(url) - 2; i >= 0; --i){
+      if (*(url + i) == '/'){
+        slash = url + i;
+        size = (url + strlen(url) - 1) - slash - 1;
+        break;
+      }
+    }
+  }else{
+    size = (url + strlen(url)) - slash - 1;
+  }
+
+  return strndup(slash + 1, size);
+}
+
+
+/**
+ * Generate a path to save the content returned by libcurl
+ * Create directories if necessary 
+ * Path will be of format: 
+ * scrapper/data/name of Action/type of content (text, image,..)/name of file with extension
+ * This function return the pointer to the opened file
+ **/
+char *makeFilePath(Action *action, char *contentType, char *url){
+  char *filePath, *nameFile, *type, *actionName, command[200];
+  actionName = strdup(action->name);
+  strcpy(command, "mkdir -p ");
+  for (char *c = actionName; *c != '\0'; c++){
+    if (*c == ' ') *c = '_';
+  }
+
+  nameFile = extractLastPart(url);
+  type = strchr(contentType, '/');
+  type = strndup(contentType, type - contentType);
+  fixExtension(&nameFile, contentType);
+  filePath = (char*)malloc((strlen("../data/") + strlen(actionName) + strlen(type) + strlen(nameFile) + 3) * sizeof(char));
+  strcpy(filePath, "../data/");
+  strcat(filePath, actionName);
+  strcat(filePath, "/");
+  strcat(filePath, type);
+  strcat(filePath, "/");
+  //create directories
+  strcat(command, filePath);
+  system(command);
+
+  strcat(filePath, nameFile);
+
+  free(type);
+  free(nameFile);
+  free(actionName);
+  return filePath;
+}
+
 
 /*  
 * Get content type to know if this should be saved or not: easy handle, action options type selected
@@ -263,71 +427,47 @@ void reconstructURL(char **URLRelative, char *URLHost){
 * After that cleanup the ez handle in argument
 * 
 */ 
-size_t write_cb(void *data, size_t size, size_t nmemb, LinkEasyMulti *linkHandles){
-
+size_t write_cb(void *data, size_t size, size_t nmemb, CURL *easy){
   size_t res;
+  FILE *f;
   char *contentType;
-  char *urlFound, *currURL;
-  char *__data;
-  int currDepth, max_depth;
+  char *currURL;
+  char *filePath;
   WrapAction *wrapper;
 
   //retrieve the content type 
-  curl_easy_getinfo(linkHandles->easy, CURLINFO_CONTENT_TYPE, &contentType);
+  curl_easy_getinfo(easy, CURLINFO_CONTENT_TYPE, &contentType);
 
   //retrieve the URL of the curl that called write_cb
-  curl_easy_getinfo(linkHandles->easy, CURLINFO_EFFECTIVE_URL, &currURL);
+  curl_easy_getinfo(easy, CURLINFO_EFFECTIVE_URL, &currURL);
 
   //retrieve the wrapper
-  curl_easy_getinfo(linkHandles->easy, CURLINFO_PRIVATE, &wrapper);
-
-  //retrieve the depth of the current curl request
-  currURL = delProtocol(currURL);
-  currDepth = findNode(wrapper->root, currURL)->depth;
-
-  //retrieve the max_depth of action
-  max_depth = getMaxDepth(wrapper->action);
+  curl_easy_getinfo(easy, CURLINFO_PRIVATE, &wrapper);
 
   //if the content type is one of those selected to save 
   //defined in the option of action then save data 
-  if (isTypeSelected(contentType, wrapper->action)){
-    res = saveData(data, size, nmemb, contentType, ".", currURL);
+  //we also save all html file even if text/html is not
+  //a selected type in order to find URLs in it after
+  if (isTypeSelected(contentType, wrapper->action) || strstr(contentType, "text/html") != NULL){
+    filePath = makeFilePath(wrapper->action, contentType, currURL);
+    f = fopen(filePath, "a");
+    if (f == NULL) return 0; 
+    res = fwrite(data, size, nmemb, f);
+    free(filePath);
+    fclose(f);
   }
-
-  // find others URL from the content only if the content 
-  // is of type text/html
-  if (strstr(contentType, "text/html") != NULL && currDepth < max_depth){
-    __data = (char*)data;    
-    while ((urlFound = getURL(__data, &__data)) != NULL){
-      reconstructURL(&urlFound, currURL);
-      urlFound = delProtocol(urlFound);
-      //check if the url found was parsed or not 
-      //if not, make an easy curl for it 
-      //add that curl to the multi curl of the task 
-      //and insert the url into the tree 
-      if (!URLAlrParsed(wrapper->root, urlFound)){
-        insertURL(wrapper->root, urlFound, currDepth+1);
-        add_transfer(linkHandles->multi, wrapper, urlFound);
-      }free(urlFound);
-    }
-  }
-  // curl_multi_remove_handle(linkHandles->multi, linkHandles->easy);
-  // curl_easy_cleanup(linkHandles->easy);
-  //delLink(linkHandles);
   return res;
 }
  
 void add_transfer(CURLM *cm, WrapAction *wrapper, char *url)
 {
   CURL *eh;
-  LinkEasyMulti *linkCurls;
   if (url == NULL) url = wrapper->action->url;
   
   eh = curl_easy_init();
   if (eh){
-    linkCurls = initLink(eh, cm);
     curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, write_cb);
-    curl_easy_setopt(eh, CURLOPT_WRITEDATA, linkCurls);
+    curl_easy_setopt(eh, CURLOPT_WRITEDATA, eh);
     curl_easy_setopt(eh, CURLOPT_URL, url);
     curl_easy_setopt(eh, CURLOPT_PRIVATE, (void*)wrapper);
     curl_easy_setopt(eh, CURLOPT_FOLLOWLOCATION, 1L);
@@ -336,63 +476,101 @@ void add_transfer(CURLM *cm, WrapAction *wrapper, char *url)
 }
 
 
-/**
- * Initialize a Node
- * @param suburl : the string of sub-link of the url 
- * @param depth : the depth of this link from the initial
- * @param next : its next sibling
- * @param child : its first child
- * @return : the node itself
- */
-// void parseAction(Action *action){
-//     Node tree;
-//     int max_depth = -1;
-//     int versionning = 0;
-//     char **types = NULL;
-//     int nbTypes = -1;
+void parseATask(Task *task){
+  CURLM *cm;
+  CURLMsg *msg;
+  CURLMcode res;
+  CURL *ce; 
+  int msgs_left = -1;
+  int still_alive = 1;
+  WrapAction *wrappers[task->nbActions];
+  WrapAction *wrapper;
+  int currDepth, maxDepth;
+  long timeout;
+  char *url, *contentType, *filePath;
+  FILE *f;
 
-//     //retrieve options of the action 
-//     for (int i = 0; i < action->nbOptions; ++i){
-//         switch (action->options[i].type){
-//             case MAX_DEPTH:
-//                 max_depth = action->options[i].val.depth;
-//                 break;
-//             case VERSIONNING:
-//                 versionning = action->options[i].val.shift;
-//                 break;
-//             case TYPESELECT:
-//                 types = action->options[i].val.type.types;
-//                 nbTypes = action->options[i].val.type.nbTypes;
-//                 break;
-//             default:
-//                 break;
-//         }
-//     }
-    
-//     tree = makeTree(action->url);
+  curl_global_init(CURL_GLOBAL_ALL);
+  cm = curl_multi_init();
 
-//     parseURLRecursive(action->url, tree, 0, max_depth, versionning, types, nbTypes);
+  if (cm == NULL){
+    fprintf(stderr, "Cannot initialize curl_multi.\n");
+    exit(1);
+  }
 
-//     //save all URLs parsed
-//     saveAllURLs(tree, action);
-//     delTree(&tree);
+  //Limit the amount of simultaneous connections curl should allow:
+  curl_multi_setopt(cm, CURLOPT_MAXCONNECTS, 10 * task->nbActions);
 
-// }
+  //add URLs from actions of the task to curl_multi handle
+  for (int i = 0; i < task->nbActions; i++){
+    wrappers[i] = initWrap(task->actions[i], makeTree(task->actions[i]->url));
+    add_transfer(cm, wrappers[i], NULL);
+  }
 
-/**
- * Make a tree from the very initial url 
- * @param url : the initial url of the tree
- * @return : the root of the tree
- */
-void parseTask(Task *task);
+  do {
+    res = curl_multi_perform(cm, &still_alive);
+    if(res != CURLM_OK) {
+      fprintf(stderr, "curl_multi failed, code %d.\n", res);
+      break;
+    }
+    while ((msg = curl_multi_info_read(cm, &msgs_left))){
+      if (msg->msg == CURLMSG_DONE) {
+        //retrieve needed infos
+        ce = msg->easy_handle;
+        curl_easy_getinfo(ce, CURLINFO_PRIVATE, &wrapper);
+        curl_easy_getinfo(ce, CURLINFO_CONTENT_TYPE, &contentType);
+        curl_easy_getinfo(ce, CURLINFO_EFFECTIVE_URL, &url);
+        //print out message
+        fprintf(stderr, "R: %d - %s <%s>\n",
+                msg->data.result, curl_easy_strerror(msg->data.result), url);
 
-/**
- * Compare two nodes by their url 
- * @param node1, node2 : 2 nodes to be compared
- * @return : 0 if their url are equals 
- *          -1 if node1->url < node2->url
- *           1 if node1->url > node2->url
- */
-void parseConfigure(Configure *config);
+        if (msg->data.result != 0) continue;
+        //if the content type is text/html 
+        //then we need to parse the saved data 
+        //to retrieve all URLs
+        if (strstr(contentType, "text/html")){
+          url = delProtocol(url);
+          maxDepth = getMaxDepth(wrapper->action);
+          currDepth = findNode(wrapper->root, url)->depth;
+          if (currDepth < maxDepth){
+            filePath = makeFilePath(wrapper->action, contentType, url);
+            f = fopen(filePath, "r");
+            if (f == NULL) continue;
+            getURLsFromFile(f, cm, wrapper, url);
+            fclose(f);
+            
+            //if the content type (text/html) is actually
+            //not a selected type then delte the file
+            if (!isTypeSelected(contentType, wrapper->action)){
+              remove(filePath);
+            }
+            free(filePath);
+          }
+        }
+        curl_multi_remove_handle(cm, ce);
+        curl_easy_cleanup(ce);
+      }
+      else{
+        fprintf(stderr, "E: CURLMsg (%d)\n", msg->msg);
+        curl_multi_remove_handle(cm, msg->easy_handle);
+        curl_easy_cleanup(msg->easy_handle);
+      }
+    }
+    curl_multi_timeout(cm, &timeout);
+    if (timeout < 0) curl_multi_wait(cm, NULL, 0, 1000, NULL);
+    else if (timeout == 0) curl_multi_perform(cm, &still_alive);
+    else curl_multi_wait(cm, NULL, 0, (int)timeout, NULL);
+  }while (still_alive);
 
+  //clean up and free space
+  for (int i = 0; i < task->nbActions; i++) delWrap(&(wrappers[i]));
+  curl_multi_cleanup(cm);
+  curl_global_cleanup();
+}
+
+void parseConfig(Configure *config){
+  for (int i = 0; i < config->nbTask; i++){
+    parseATask(config->tasks[i]);
+  }
+}
 

@@ -12,12 +12,17 @@
 #include "configuration.h"
 #include "url.h"
 
-#define NB_MIME_TYPES 691
+#define NB_MIME_TYPES 62
+#define BUFFER_SIZE 2000
+
+
 
 typedef struct typeMIME{
   char *type;
   char *extension;
 }TypeMIME;
+
+extern TypeMIME* allMIMEs;
 
 /*Each Action will be associated with its tree of URLs 
 * by this wrapper. This wrapper allows us to get access
@@ -44,11 +49,9 @@ typedef struct linkEasyMulti{
 
 
 
-TypeMIME initMIME(char *type, char* extension);
-
 void delAllMIME(TypeMIME *allMIME);
 
-
+TypeMIME *initAllMIME();
 
 WrapAction *initWrap(Action *action, Node root);
 
@@ -62,44 +65,20 @@ int isTypeSelected(char *type, Action *action);
 
 char *extractLastPart(char *url);
 
-int hasExtension(char *fileName);
+char *makeFilePath(Action *action, char *contentType, char *url);
 
 size_t saveData(void *data, size_t size, size_t nmemb, char *dataType, char *filePath, char *url);
 
-char *getURL(char *data, char **dataLeft);
+void getURLsFromFile(FILE *f, CURLM *cm, WrapAction *wrapper, char* URLOfFile);
 
 void reconstructURL(char **URLRelative, char *URLDomain);
 
-size_t write_cb(void *data, size_t size, size_t nmemb, LinkEasyMulti *linkHandles);
+size_t write_cb(void *data, size_t size, size_t nmemb, CURL *easy);
  
 void add_transfer(CURLM *cm, WrapAction *wrapper, char *url);
 
-/**
- * Initialize a Node
- * @param suburl : the string of sub-link of the url 
- * @param depth : the depth of this link from the initial
- * @param next : its next sibling
- * @param child : its first child
- * @return : the node itself
- */
-void parseAction(Action *action);
+void parseATask(Task *task);
 
-/**
- * Make a tree from the very initial url 
- * @param url : the initial url of the tree
- * @return : the root of the tree
- */
-void parseTask(Task *task);
-
-/**
- * Compare two nodes by their url 
- * @param node1, node2 : 2 nodes to be compared
- * @return : 0 if their url are equals 
- *          -1 if node1->url < node2->url
- *           1 if node1->url > node2->url
- */
-void parseConfigure(Configure *config);
-
-
+void parseConfig(Configure *config);
 
 #endif

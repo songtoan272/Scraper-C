@@ -10,8 +10,7 @@
 {url -> https://stackoverflow.com/questions/24162576/how-to-download-all-images-from-web-page-in-c}
 +
 {max-depth -> 2}
-{versionning -> off}
-{type -> (text/html, image/jpg, image/jpeg)}
+{versionning -> off}}
 
 ==
 {name -> My 1st task}
